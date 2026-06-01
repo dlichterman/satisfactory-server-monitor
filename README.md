@@ -2,6 +2,8 @@
 
 A zero-dependency command-line tool for monitoring a [Satisfactory](https://www.satisfactorygame.com/) Dedicated Server via its HTTPS API. Displays live server state in a clean terminal matrix.
 
+I vibe coded this tool so I wouldn't have to check if someone was on the server by launching the game when I have run updates on the server and need to reboot everything.
+
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║           SATISFACTORY  SERVER  MONITOR                      ║
