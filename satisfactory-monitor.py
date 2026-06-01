@@ -30,7 +30,7 @@ from pathlib import Path
 CONFIG_DIR  = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "satisfactory-monitor"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
-CONFIG_KEYS = ("host", "port", "token")
+CONFIG_KEYS = ("host", "port", "token", "verify_ssl")
 
 
 def load_config() -> dict:
@@ -75,7 +75,7 @@ def print_config(cfg: dict) -> None:
         val = cfg.get(k, f"{DIM}(not set){RESET}")
         if k == "token" and val and val != f"{DIM}(not set){RESET}":
             val = val[:8] + "…" + val[-4:] if len(str(val)) > 14 else "****"
-        print(f"  {DIM}{k:<8}{RESET} {val}")
+        print(f"  {DIM}{k:<12}{RESET} {val}")
     print()
 
 
@@ -138,13 +138,14 @@ def shorten_game_phase(path: str) -> str:
 
 # ── API call ──────────────────────────────────────────────────────────────────
 
-def query_server_state(host: str, port: int, token: str) -> dict:
+def query_server_state(host: str, port: int, token: str, verify_ssl: bool = False) -> dict:
     url = f"https://{host}:{port}/api/v1"
     payload = json.dumps({"function": "QueryServerState"}).encode("utf-8")
 
     ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE   # self-signed certs are common
+    if not verify_ssl:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE   # self-signed certs are common
 
     headers = {
         "Content-Type": "application/json; charset=utf-8",
@@ -271,6 +272,8 @@ def parse_args():
                    help="Bearer token for authentication")
     p.add_argument("-w", "--watch", type=int, metavar="SECS", default=0,
                    help="Poll interval in seconds (0 = single query)")
+    p.add_argument("--verify-ssl", action="store_true", default=None,
+                   help="Validate the server's TLS certificate (default: skip validation)")
 
     cfg_group = p.add_argument_group("config management")
     cfg_group.add_argument("--save",        action="store_true",
@@ -300,9 +303,11 @@ def main():
         return
 
     # Resolve final values: CLI > config file > defaults
-    host  = args.host  or cfg.get("host")
-    port  = args.port  or cfg.get("port")  or 7777
-    token = args.token or cfg.get("token") or ""
+    host       = args.host  or cfg.get("host")
+    port       = args.port  or cfg.get("port")  or 7777
+    token      = args.token or cfg.get("token") or ""
+    # verify_ssl: CLI flag wins; fall back to config; default False
+    verify_ssl = args.verify_ssl if args.verify_ssl else cfg.get("verify_ssl", False)
 
     if not host:
         print(
@@ -313,14 +318,14 @@ def main():
         sys.exit(1)
 
     if args.save:
-        to_save = {"host": host, "port": port}
+        to_save = {"host": host, "port": port, "verify_ssl": verify_ssl}
         if args.token:          # only persist a token when explicitly supplied
             to_save["token"] = args.token
         save_config(to_save)
 
     def once():
         try:
-            state = query_server_state(host, port, token)
+            state = query_server_state(host, port, token, verify_ssl)
             draw_matrix(state, host, port)
         except urllib.error.URLError as e:
             print(f"{RED}✗ Could not connect to {host}:{port} — {e.reason}{RESET}", file=sys.stderr)

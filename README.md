@@ -99,9 +99,10 @@ options:
   -p, --port SECS       API port (default: 7777)
   -t, --token TOKEN     Bearer token for authentication
   -w, --watch SECS      Poll interval in seconds (0 = single query)
+  --verify-ssl          Validate the server's TLS certificate (default: skip validation)
 
 config management:
-  --save                Save host, port, and/or token to the config file
+  --save                Save host, port, verify-ssl, and/or token to the config file
   --config              Show current config file contents and exit
   --clear-token         Remove the saved token from the config file
 ```
@@ -133,7 +134,8 @@ The file is saved with `chmod 600` permissions since it may contain your API tok
 {
   "host": "192.168.1.100",
   "port": 7777,
-  "token": "your_api_token_here"
+  "token": "your_api_token_here",
+  "verify_ssl": false
 }
 ```
 
@@ -141,7 +143,7 @@ The file is saved with `chmod 600` permissions since it may contain your API tok
 
 | Command | Description |
 |---|---|
-| `--save` | Save the current host, port, and token (if `-t` was passed) |
+| `--save` | Save the current host, port, verify-ssl, and token (if `-t` was passed) |
 | `--config` | Print the current config file and exit |
 | `--clear-token` | Remove the saved token from the config file |
 
@@ -151,9 +153,21 @@ CLI flags always override config file values, so you can always connect to a dif
 python satisfactory-monitor.py other-server.local -t OTHER_TOKEN
 ```
 
-## Self-Signed Certificates
+## TLS / Certificate Validation
 
-Satisfactory Dedicated Servers use a self-signed TLS certificate by default. The tool handles this automatically by disabling certificate verification, which is standard practice for this use case.
+Satisfactory Dedicated Servers use a self-signed TLS certificate by default, so certificate verification is **disabled by default**.
+
+If your server has a valid certificate (e.g. issued by a public CA or your own PKI), you can enable verification:
+
+```bash
+python satisfactory-monitor.py 192.168.1.100 --verify-ssl
+```
+
+To persist this setting:
+
+```bash
+python satisfactory-monitor.py 192.168.1.100 --verify-ssl --save
+```
 
 ## API Reference
 
