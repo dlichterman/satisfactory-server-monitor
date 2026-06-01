@@ -2,16 +2,81 @@
 """
 Satisfactory Dedicated Server Monitor
 Queries the server's HTTPS API and displays state in a formatted matrix.
+
+Config file (~/.config/satisfactory-monitor/config.json):
+  {
+    "host": "192.168.1.100",
+    "port": 7777,
+    "token": "your_api_token_here"
+  }
+
+Command-line arguments always override config file values.
 """
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
 import ssl
 import time
 from datetime import timedelta
+from pathlib import Path
+
+
+# ── Config file ───────────────────────────────────────────────────────────────
+
+CONFIG_DIR  = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "satisfactory-monitor"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+
+CONFIG_KEYS = ("host", "port", "token")
+
+
+def load_config() -> dict:
+    """Load config from file, returning an empty dict if not found."""
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        with CONFIG_FILE.open() as f:
+            data = json.load(f)
+        return {k: data[k] for k in CONFIG_KEYS if k in data}
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"{YELLOW}⚠ Could not read config file ({CONFIG_FILE}): {e}{RESET}", file=sys.stderr)
+        return {}
+
+
+def save_config(cfg: dict) -> None:
+    """Save the given keys to the config file, merging with existing content."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    existing = {}
+    if CONFIG_FILE.exists():
+        try:
+            with CONFIG_FILE.open() as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+    existing.update(cfg)
+    # Remove keys explicitly set to None
+    existing = {k: v for k, v in existing.items() if v is not None}
+    with CONFIG_FILE.open("w") as f:
+        json.dump(existing, f, indent=2)
+        f.write("\n")
+    CONFIG_FILE.chmod(0o600)   # token is sensitive
+    print(f"{GREEN}✓ Config saved to {CONFIG_FILE}{RESET}")
+
+
+def print_config(cfg: dict) -> None:
+    print(f"\n  Config file: {CONFIG_FILE}")
+    if not cfg:
+        print(f"  {DIM}(no config file found){RESET}\n")
+        return
+    for k in CONFIG_KEYS:
+        val = cfg.get(k, f"{DIM}(not set){RESET}")
+        if k == "token" and val and val != f"{DIM}(not set){RESET}":
+            val = val[:8] + "…" + val[-4:] if len(str(val)) > 14 else "****"
+        print(f"  {DIM}{k:<8}{RESET} {val}")
+    print()
 
 
 # ── ANSI colours ──────────────────────────────────────────────────────────────
@@ -186,25 +251,79 @@ def draw_matrix(state: dict, host: str, port: int) -> None:
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Monitor a Satisfactory Dedicated Server via its HTTPS API."
+        description="Monitor a Satisfactory Dedicated Server via its HTTPS API.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            f"Config file: {CONFIG_FILE}\n\n"
+            "  Save connection settings so you don't have to retype them:\n"
+            "    %(prog)s 192.168.1.100 -t MY_TOKEN --save\n"
+            "    %(prog)s          # uses saved host/port/token automatically\n\n"
+            "  Use --config to view current config file contents.\n"
+            "  Use --clear-token to remove a saved token from the config file.\n"
+        ),
     )
-    p.add_argument("host", help="Server hostname or IP address")
-    p.add_argument("-p", "--port",    type=int, default=7777, help="API port (default: 7777)")
-    p.add_argument("-t", "--token",   default="",             help="Bearer token for authentication")
-    p.add_argument("-w", "--watch",   type=int, metavar="SECS", default=0,
-                   help="Poll interval in seconds. Omit for a single query.")
+
+    p.add_argument("host",  nargs="?",  default=None,
+                   help="Server hostname or IP (can be saved in config)")
+    p.add_argument("-p", "--port",  type=int, default=None,
+                   help="API port (default: 7777)")
+    p.add_argument("-t", "--token", default=None,
+                   help="Bearer token for authentication")
+    p.add_argument("-w", "--watch", type=int, metavar="SECS", default=0,
+                   help="Poll interval in seconds (0 = single query)")
+
+    cfg_group = p.add_argument_group("config management")
+    cfg_group.add_argument("--save",        action="store_true",
+                           help="Save host, port, and/or token to the config file")
+    cfg_group.add_argument("--config",      action="store_true",
+                           help="Show current config file contents and exit")
+    cfg_group.add_argument("--clear-token", action="store_true",
+                           help="Remove the saved token from the config file")
+
     return p.parse_args()
 
 
 def main():
     args = parse_args()
 
+    # Load persisted config first; CLI args override
+    cfg = load_config()
+
+    # ── Config management sub-commands ──
+    if args.config:
+        print_config(cfg)
+        return
+
+    if args.clear_token:
+        cfg.pop("token", None)
+        save_config(cfg)
+        return
+
+    # Resolve final values: CLI > config file > defaults
+    host  = args.host  or cfg.get("host")
+    port  = args.port  or cfg.get("port")  or 7777
+    token = args.token or cfg.get("token") or ""
+
+    if not host:
+        print(
+            f"{RED}✗ No host specified. "
+            f"Pass a hostname/IP or run with --save to store one.{RESET}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if args.save:
+        to_save = {"host": host, "port": port}
+        if args.token:          # only persist a token when explicitly supplied
+            to_save["token"] = args.token
+        save_config(to_save)
+
     def once():
         try:
-            state = query_server_state(args.host, args.port, args.token)
-            draw_matrix(state, args.host, args.port)
+            state = query_server_state(host, port, token)
+            draw_matrix(state, host, port)
         except urllib.error.URLError as e:
-            print(f"{RED}✗ Could not connect to {args.host}:{args.port} — {e.reason}{RESET}", file=sys.stderr)
+            print(f"{RED}✗ Could not connect to {host}:{port} — {e.reason}{RESET}", file=sys.stderr)
             sys.exit(1)
         except RuntimeError as e:
             print(f"{RED}✗ {e}{RESET}", file=sys.stderr)
@@ -213,7 +332,6 @@ def main():
     if args.watch > 0:
         try:
             while True:
-                # Clear screen on each refresh
                 print("\033[2J\033[H", end="")
                 once()
                 print(f"  {DIM}Next refresh in {args.watch}s — Ctrl+C to quit{RESET}\n")
