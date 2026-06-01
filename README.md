@@ -159,4 +159,4 @@ This tool uses the `QueryServerState` function from the [Satisfactory Dedicated 
 
 ## License
 
-MIT
+GNU Affero General Public License v3.0
