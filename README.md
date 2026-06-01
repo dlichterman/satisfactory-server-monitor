@@ -8,23 +8,23 @@ A zero-dependency command-line tool for monitoring a [Satisfactory](https://www.
 ║                  192.168.1.100:7777                          ║
 ╠══════════════════════════════════════════════════════════════╣
 ║                                                              ║
-║ Status                   │ Running                          ║
-║ Session                  │ MyFactory                        ║
-║ Auto-load Session        │ MyFactory                        ║
+║ Status                   │ Running                           ║
+║ Session                  │ MyFactory                         ║
+║ Auto-load Session        │ MyFactory                         ║
 ║                                                              ║
 ╠──────────────────────────────────────────────────────────────╣
 ║                                                              ║
-║ Players Connected        │ 2 / 4                            ║
-║ Average Tick Rate        │ 30.0 tps                         ║
-║ Tech Tier                │ 6                                ║
-║ Game Phase               │ Phase 1                          ║
-║ Active Milestone         │ Schematic_6-7                    ║
+║ Players Connected        │ 2 / 4                             ║
+║ Average Tick Rate        │ 30.0 tps                          ║
+║ Tech Tier                │ 6                                 ║
+║ Game Phase               │ Phase 1                           ║
+║ Active Milestone         │ Schematic_6-7                     ║
 ║                                                              ║
 ╠──────────────────────────────────────────────────────────────╣
 ║                                                              ║
-║ Game Running             │ Yes                              ║
-║ Game Paused              │ No                               ║
-║ Total Play Time          │ 4d 12h 33m 7s                    ║
+║ Game Running             │ Yes                               ║
+║ Game Paused              │ No                                ║
+║ Total Play Time          │ 4d 12h 33m 7s                     ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
   Refreshed at 14:22:05
